@@ -37,9 +37,11 @@ function startDevServer() {
 }
 
 function startProdServer() {
+  // The standalone build is bundled in files + asarUnpack, so it ends up at
+  // resources/app.asar.unpacked/.next/standalone/server.js (real files on disk).
   const standaloneDir = isDev
     ? path.join(__dirname, "..", ".next", "standalone")
-    : path.join(process.resourcesPath, "standalone");
+    : path.join(process.resourcesPath, "app.asar.unpacked", ".next", "standalone");
   const serverJs = path.join(standaloneDir, "server.js");
   if (!fs.existsSync(serverJs)) {
     console.error("[finflow] Server not found:", serverJs);
@@ -47,8 +49,7 @@ function startProdServer() {
   }
   console.log("[finflow] Starting Next.js server from:", standaloneDir);
   return new Promise((resolve, reject) => {
-    // CRITICAL: process.execPath is FinFlow.exe (Electron), NOT node.exe.
-    // ELECTRON_RUN_AS_NODE=1 makes the Electron binary behave as pure Node.js.
+    // ELECTRON_RUN_AS_NODE=1 makes FinFlow.exe behave as pure Node.js.
     serverProc = spawn(process.execPath, [serverJs], {
       cwd: standaloneDir,
       stdio: ["ignore", "pipe", "pipe"],

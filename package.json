@@ -117,13 +117,10 @@
                   "files":  [
                                 "electron/main.cjs",
                                 "electron/preload.cjs",
-                                "package.json"
+                                "package.json",
+                                ".next/standalone/**/*"
                             ],
                   "extraResources":  [
-                                         {
-                                             "to":  "standalone",
-                                             "from":  ".next/standalone"
-                                         },
                                          {
                                              "to":  "prisma",
                                              "from":  "prisma"

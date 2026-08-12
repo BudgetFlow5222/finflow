@@ -39,25 +39,15 @@ jobs:
 
       - name: Ensure Prisma Windows engine is bundled
         run: |
-          Write-Host "Checking Prisma engines in standalone..."
           $standalonePrisma = ".next/standalone/node_modules/.prisma/client"
           $engineSrc = "node_modules/.prisma/client"
-          if (Test-Path $standalonePrisma) {
-            Write-Host "Standalone Prisma client exists"
-            Get-ChildItem $standalonePrisma -Filter "*engine*" | ForEach-Object { Write-Host "  Found: $($_.Name)" }
-          }
           $winEngine = Get-ChildItem $engineSrc -Filter "query_engine-windows*" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($winEngine) {
             $dest = Join-Path $standalonePrisma $winEngine.Name
             if (-not (Test-Path $dest)) {
               Copy-Item $winEngine.FullName $dest -Force
               Write-Host "Copied Windows engine: $($winEngine.Name)"
-            } else {
-              Write-Host "Windows engine already present"
             }
-          } else {
-            Write-Host "WARNING: No Windows engine found in $engineSrc"
-            Get-ChildItem $engineSrc | ForEach-Object { Write-Host "  $($_.Name)" }
           }
         shell: pwsh
 
@@ -77,10 +67,3 @@ jobs:
           name: FinFlow-Windows-Installer
           path: release/FinFlow-Setup-*.exe
           if-no-files-found: error
-
-      - name: Upload unpacked app (debug)
-        uses: actions/upload-artifact@v4
-        with:
-          name: FinFlow-Windows-Unpacked
-          path: release/win-unpacked/
-          if-no-files-found: warn

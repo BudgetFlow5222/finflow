@@ -1,0 +1,317 @@
+// FinFlow — Financial Management Web App
+// Prisma schema (SQLite). Mirrors the Google Sheets worksheet structure requested
+// in the product spec: Accounts, Customers, Vendors, Sales, Expenses, Invoices,
+// InvoiceItems, AccountsReceivable, AccountsPayable, Categories, Budget, Transfers,
+// Settings, DashboardCache.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Master data
+// ---------------------------------------------------------------------------
+
+model Account {
+  id             String   @id @default(cuid())
+  name           String
+  type           String   // CASH | BANK | WALLET | UPI | CARD
+  openingBalance Float    @default(0)
+  currentBalance Float    @default(0)
+  currency       String   @default("INR")
+  status         String   @default("ACTIVE") // ACTIVE | CLOSED | FROZEN
+  color          String?
+  notes          String?
+  lastReconciledAt      DateTime?
+  lastReconciledBalance Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sales     Sale[]
+  expenses  Expense[]
+  transfersIn  Transfer[]  @relation("TransferTo")
+  transfersOut Transfer[]  @relation("TransferFrom")
+  recurring RecurringTransaction[]
+  reconciliations Reconciliation[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  notes     String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales    Sale[]
+  invoices Invoice[]
+  ar       AccountsReceivable[]
+  recurring RecurringTransaction[]
+}
+
+model Vendor {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  notes     String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expenses Expense[]
+  ap       AccountsPayable[]
+  recurring RecurringTransaction[]
+}
+
+model Category {
+  id            String   @id @default(cuid())
+  name          String
+  type          String   // INCOME | EXPENSE
+  budgetType    String?  // NEED | WANT | SAVINGS (for expense categories)
+  color         String?
+  icon          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  expenses Expense[]
+  recurring RecurringTransaction[]
+}
+
+// ---------------------------------------------------------------------------
+// Transactions
+// ---------------------------------------------------------------------------
+
+model Sale {
+  id            String   @id @default(cuid())
+  customerId    String
+  accountId     String
+  invoiceId     String?  @unique
+  date          DateTime @default(now())
+  amount        Float
+  tax           Float    @default(0)
+  discount      Float    @default(0)
+  total         Float    @default(0)
+  paymentMethod String?  // CASH | BANK | UPI | CARD | WALLET
+  status        String   @default("COMPLETED") // COMPLETED | PENDING | REFUNDED
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  account  Account  @relation(fields: [accountId], references: [id])
+  invoice  Invoice?  @relation(fields: [invoiceId], references: [id])
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+  vendorId      String?
+  categoryId     String?
+  accountId     String
+  date          DateTime @default(now())
+  amount        Float
+  tax           Float    @default(0)
+  total         Float    @default(0)
+  paymentMethod String?
+  budgetType    String?  // NEED | WANT | SAVINGS
+  status        String   @default("COMPLETED")
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vendor    Vendor?    @relation(fields: [vendorId], references: [id])
+  category  Category?  @relation(fields: [categoryId], references: [id])
+  account   Account    @relation(fields: [accountId], references: [id])
+}
+
+model Transfer {
+  id              String   @id @default(cuid())
+  fromAccountId   String
+  toAccountId     String
+  amount          Float
+  date            DateTime @default(now())
+  notes           String?
+  fee             Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  fromAccount Account @relation("TransferFrom", fields: [fromAccountId], references: [id])
+  toAccount   Account @relation("TransferTo", fields: [toAccountId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// Invoices & AR/AP
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id           String   @id @default(cuid())
+  number       String   @unique
+  customerId   String
+  issueDate    DateTime @default(now())
+  dueDate      DateTime
+  subtotal     Float    @default(0)
+  taxRate      Float    @default(0)
+  tax          Float    @default(0)
+  discount     Float    @default(0)
+  total        Float    @default(0)
+  paidAmount   Float    @default(0)
+  status       String   @default("DRAFT") // DRAFT | SENT | PAID | PARTIALLY_PAID | OVERDUE | CANCELLED
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customer Customer         @relation(fields: [customerId], references: [id])
+  items    InvoiceItem[]
+  sale     Sale?
+  ar       AccountsReceivable?
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float   @default(1)
+  rate        Float   @default(0)
+  amount      Float   @default(0)
+  createdAt   DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model AccountsReceivable {
+  id          String   @id @default(cuid())
+  invoiceId   String   @unique
+  customerId  String
+  amount      Float
+  paidAmount  Float    @default(0)
+  dueDate     DateTime
+  status      String   @default("OUTSTANDING") // OUTSTANDING | PARTIALLY_PAID | PAID | OVERDUE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+model AccountsPayable {
+  id         String   @id @default(cuid())
+  vendorId   String
+  billNumber String?
+  amount     Float
+  paidAmount Float    @default(0)
+  dueDate    DateTime
+  issueDate   DateTime @default(now())
+  status     String   @default("OUTSTANDING") // OUTSTANDING | PARTIALLY_PAID | PAID | OVERDUE
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// Budgeting (50/30/20)
+// ---------------------------------------------------------------------------
+
+model Budget {
+  id        String   @id @default(cuid())
+  month     String   @unique // YYYY-MM
+  income    Float    @default(0) // take-home income
+  needsPct  Float    @default(50)
+  wantsPct  Float    @default(30)
+  savingsPct Float   @default(20)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Savings Goals
+// ---------------------------------------------------------------------------
+
+model SavingsGoal {
+  id           String    @id @default(cuid())
+  name         String
+  targetAmount Float
+  savedAmount  Float     @default(0)
+  targetDate   DateTime?
+  color        String?
+  icon         String?
+  status       String    @default("ACTIVE") // ACTIVE | COMPLETED | PAUSED
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Recurring Transactions (templates for recurring income/expenses)
+// ---------------------------------------------------------------------------
+
+model RecurringTransaction {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // INCOME | EXPENSE
+  amount      Float
+  categoryId  String?
+  accountId   String
+  vendorId    String?
+  customerId  String?
+  frequency   String   // DAILY | WEEKLY | MONTHLY | QUARTERLY | YEARLY
+  interval    Int      @default(1) // every N units
+  nextDate    DateTime
+  endDate     DateTime?
+  paymentMethod String?
+  budgetType  String?  // NEED | WANT | SAVINGS (for expenses)
+  status      String   @default("ACTIVE") // ACTIVE | PAUSED | COMPLETED
+  notes       String?
+  lastPosted  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category Category? @relation(fields: [categoryId], references: [id])
+  account  Account   @relation(fields: [accountId], references: [id])
+  vendor   Vendor?   @relation(fields: [vendorId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// Settings & cache
+// ---------------------------------------------------------------------------
+
+model Setting {
+  id    String @id
+  value String
+}
+
+model DashboardCache {
+  id        String   @id
+  payload   String
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation — track account statement matching history
+// ---------------------------------------------------------------------------
+
+model Reconciliation {
+  id              String   @id @default(cuid())
+  accountId       String
+  statementDate   DateTime
+  statementBalance Float
+  systemBalance   Float
+  difference      Float    @default(0)
+  status          String   @default("MATCHED") // MATCHED | DISCREPANCY | ADJUSTED
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}

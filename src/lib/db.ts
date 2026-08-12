@@ -21,12 +21,16 @@ function findAndSetEnginePath() {
       join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'node_modules', '.prisma', 'client'),
       join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.prisma', 'client'),
       join(process.resourcesPath, 'standalone', 'node_modules', '.prisma', 'client'),
-      join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'node_modules', '@prisma', 'engines'),
     )
   }
   candidates.push(
     join(process.cwd(), 'node_modules', '.prisma', 'client'),
+    join(__dirname, 'node_modules', '.prisma', 'client'),
+    join(__dirname, '..', 'node_modules', '.prisma', 'client'),
     join(__dirname, '..', '..', 'node_modules', '.prisma', 'client'),
+    join(__dirname, '..', '..', '..', 'node_modules', '.prisma', 'client'),
+    join(__dirname, '..', '..', '..', '..', 'node_modules', '.prisma', 'client'),
+    join(__dirname, '..', '..', '..', '..', '..', 'node_modules', '.prisma', 'client'),
   )
   for (const dir of candidates) {
     if (!existsSync(dir)) continue

@@ -1,0 +1,50 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build FinFlow for Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build Next.js standalone
+        run: npx next build
+
+      - name: Copy static assets
+        run: node scripts/postbuild.cjs
+
+      - name: Create seed database
+        run: node scripts/prepare-seed-db.cjs
+        env:
+          DATABASE_URL: file:${{ github.workspace }}/prisma/seed.db
+
+      - name: Build Electron app + Windows installer
+        run: npx electron-builder --win --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FinFlow-Windows-Installer
+          path: release/FinFlow-Setup-*.exe
+          if-no-files-found: error

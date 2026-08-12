@@ -47,9 +47,8 @@ function startProdServer() {
   }
   console.log("[finflow] Starting Next.js server from:", standaloneDir);
   return new Promise((resolve, reject) => {
-    // In a packaged Electron app, process.execPath is the Electron binary
-    // (FinFlow.exe), NOT node.exe. Setting ELECTRON_RUN_AS_NODE=1 makes the
-    // Electron binary behave as pure Node.js, so it can run server.js.
+    // CRITICAL: process.execPath is FinFlow.exe (Electron), NOT node.exe.
+    // ELECTRON_RUN_AS_NODE=1 makes the Electron binary behave as pure Node.js.
     serverProc = spawn(process.execPath, [serverJs], {
       cwd: standaloneDir,
       stdio: ["ignore", "pipe", "pipe"],
@@ -65,8 +64,6 @@ function startProdServer() {
     serverProc.stdout.on("data", (d) => process.stdout.write("[server] " + d));
     serverProc.stderr.on("data", (d) => process.stderr.write("[server] " + d));
     serverProc.on("error", reject);
-    // Hit the homepage (not /api/health) because /api/health queries the DB
-    // and would fail on an empty first-run database.
     const tryLoad = () => {
       const http = require("node:http");
       const req = http.get("http://127.0.0.1:" + PROD_PORT + "/", (res) => {
